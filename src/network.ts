@@ -82,8 +82,8 @@ export const NETWORK: Record<'arc' | 'base', ChainDeployment> & Partial<Record<'
     // After you deploy the router (README, step 4): paste its address as `router` and your stock treasury wallet as `treasury`.
     // The five tokens below are the real Coinbase tokenized stocks on Base Mainnet (8 decimals, symbol and name confirmed on-chain).
     stock: {
-      router: ZERO_ADDRESS,
-      treasury: ZERO_ADDRESS,
+      router: '0x5E4A44CD134dDD2f6633e7b44537a6FF88F8A544',
+      treasury: '0xe10abbc8c203a70a8aff5897385da9245b49ef59',
       tokens: [
         { symbol: 'NVDAc', name: 'NVIDIA', address: '0xb20000000000000000000078ee7ce2fE4908108C' },
         { symbol: 'AAPLc', name: 'Apple', address: '0xb200000000000000000000C2e324d24d7eEcd1fb' },
@@ -99,9 +99,9 @@ export const NETWORK: Record<'arc' | 'base', ChainDeployment> & Partial<Record<'
     id: 42161,
     usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     cctpDomain: 3,
-    factory: ZERO_ADDRESS, // SplitFactory
-    points: ZERO_ADDRESS, // StrPoints
-    names: ZERO_ADDRESS, // SplitNames
-    labels: ZERO_ADDRESS, // RecipientLabels
+    factory: '0x9336ef11392Db07873cca919EeD8A4C6Cc1bB881', // SplitFactory
+    points: '0xf5AAf10c58a01fC27919Cc34a64C4F1c99ad7318', // StrPoints
+    names: '0x06e879972f9b24FB258100E9B3A9FeA060Df77D9', // SplitNames
+    labels: '0x948787C73cF74Fa25800b57fcbDCa95a516187f2', // RecipientLabels
   },
 }
