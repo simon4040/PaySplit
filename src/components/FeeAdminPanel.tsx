@@ -1,9 +1,10 @@
 /**
- * Owner-only controls for the protocol fee. Renders nothing unless the connected
+ * Owner-only settings for the protocol fee (collapsed by default). Renders nothing unless the connected
  * wallet is the contract owner.
  */
 import { useState } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
+import { useAccount, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
+import { useWriteContract } from '@/hooks/useWrite'
 import { ChevronDown, Loader2, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { useChain } from '@/hooks/useChain'
@@ -93,7 +94,7 @@ export function FeeAdminPanel() {
         <div className="flex items-center gap-2.5">
           <SlidersHorizontal className="size-3.5" style={{ color: 'var(--accent)' }} />
           <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)', letterSpacing: '0.09em' }}>
-            Owner · Protocol fee
+            Owner settings
           </span>
         </div>
         <div className="flex items-center gap-3">

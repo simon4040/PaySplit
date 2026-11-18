@@ -2,8 +2,10 @@
  * STR points: the connected wallet's status on the active chain, its total across chains,
  * and the global leaderboard (merged from every chain's StrPoints contract).
  */
-import { useEffect, useMemo, useState } from 'react'
-import { useAccount, useReadContract, usePublicClient } from 'wagmi'
+import { useEffect, useState } from 'react'
+import { useAccount, useReadContract, useReadContracts } from 'wagmi'
+import { getPublicClient } from 'wagmi/actions'
+import { config } from '@/config'
 import { useQuery } from '@tanstack/react-query'
 import { parseEventLogs, type Abi, type Log } from 'viem'
 import { toast } from 'sonner'
@@ -92,19 +94,26 @@ export function usePointsStatus() {
 /** The connected wallet's STR points on each chain, and the sum. */
 export function useTotalPoints() {
   const { address } = useAccount()
-  const arc = useReadContract({
-    address: CHAINS.arc.points.address, abi: CHAINS.arc.points.abi,
-    chainId: CHAINS.arc.id, functionName: 'pointsOf', args: [address!],
+  const { data } = useReadContracts({
+    contracts: CHAIN_KEYS.map(k => ({
+      address: CHAINS[k].points.address, abi: CHAINS[k].points.abi as Abi,
+      chainId: CHAINS[k].id, functionName: 'pointsOf', args: [address!],
+    })),
     query: { enabled: !!address, refetchInterval: 15_000 },
   })
-  const base = useReadContract({
-    address: CHAINS.base.points.address, abi: CHAINS.base.points.abi,
-    chainId: CHAINS.base.id, functionName: 'pointsOf', args: [address!],
-    query: { enabled: !!address, refetchInterval: 15_000 },
+  const byChain = {} as Partial<Record<ChainKey, bigint>>
+  let total = 0n
+  let loaded = false
+  CHAIN_KEYS.forEach((k, i) => {
+    const r = data?.[i]
+    if (r?.status === 'success') {
+      const v = r.result as bigint
+      byChain[k] = v
+      total += v
+      loaded = true
+    }
   })
-  const arcPts = (arc.data as bigint | undefined) ?? 0n
-  const basePts = (base.data as bigint | undefined) ?? 0n
-  return { arc: arcPts, base: basePts, total: arcPts + basePts, loaded: arc.data !== undefined || base.data !== undefined }
+  return { byChain, total, loaded }
 }
 
 export type LeaderboardFilter = 'all' | ChainKey
@@ -114,10 +123,6 @@ export interface LeaderboardEntry { address: string; points: bigint }
 const PAGE = 200n
 
 export function useLeaderboard(filter: LeaderboardFilter) {
-  const arcClient = usePublicClient({ chainId: CHAINS.arc.id })
-  const baseClient = usePublicClient({ chainId: CHAINS.base.id })
-  const clients = useMemo(() => ({ arc: arcClient, base: baseClient }), [arcClient, baseClient])
-
   return useQuery({
     queryKey: ['leaderboard', filter],
     refetchInterval: 20_000,
@@ -126,9 +131,9 @@ export function useLeaderboard(filter: LeaderboardFilter) {
       const totals = new Map<string, LeaderboardEntry>()
 
       await Promise.all(keys.map(async key => {
-        const client = clients[key]
+        const { points, id } = CHAINS[key]
+        const client = getPublicClient(config, { chainId: id as (typeof config.chains)[number]['id'] })
         if (!client) return
-        const { points } = CHAINS[key]
         const count = (await client.readContract({
           address: points.address, abi: points.abi, functionName: 'userCount',
         })) as bigint

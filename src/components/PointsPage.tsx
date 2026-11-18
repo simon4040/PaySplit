@@ -1,15 +1,17 @@
 /**
  * Points page: total STR, 7-day check-in streak, daily check-in, and how points work.
  */
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
+import { useState } from 'react'
+import { useAccount, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
+import { useWriteContract } from '@/hooks/useWrite'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Check, Sparkles } from 'lucide-react'
+import { Loader2, Check, Sparkles, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useChain } from '@/hooks/useChain'
+import { CHAINS, CHAIN_KEYS } from '@/contract'
 import { usePointsStatus, useTotalPoints, useNow, useActivity, STREAK_LENGTH } from '@/hooks/usePoints'
 import { TIERS } from '@/hooks/strTiers'
 import { parseOnchainError } from '@/utils'
-import { DATA_SUFFIX } from '@/attribution'
 
 function fmtCountdown(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000))
@@ -41,6 +43,7 @@ export function PointsPage() {
   const totals = useTotalPoints()
   const now = useNow()
   const activity = useActivity()
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash, query: { enabled: !!hash } })
@@ -55,7 +58,7 @@ export function PointsPage() {
     if (isWrongChain) { switchChain({ chainId: chain.id }); return }
     const willBonus = bonusNext
     writeContract({
-      address: chain.points.address, abi: chain.points.abi, functionName: 'checkIn', chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      address: chain.points.address, abi: chain.points.abi, functionName: 'checkIn', chainId: chain.id,
     }, {
       onSuccess: () => {
         toast.success(willBonus ? '+30 STR points: 7-day streak bonus!' : '+5 STR points')
@@ -87,7 +90,7 @@ export function PointsPage() {
           <span className="text-xl font-medium" style={{ color: 'var(--accent)' }}>STR</span>
         </div>
         <p className="mt-3 text-xs tabular-nums" style={{ color: 'var(--muted)' }}>
-          Arc {isConnected ? totals.arc.toString() : '0'} · Base {isConnected ? totals.base.toString() : '0'}
+          {CHAIN_KEYS.map(k => `${CHAINS[k].label} ${isConnected ? (totals.byChain[k] ?? 0n).toString() : '0'}`).join(' · ')}
         </p>
       </div>
 
@@ -166,50 +169,60 @@ export function PointsPage() {
         </p>
       </div>
 
-      {/* Tiers */}
-      <div className="rounded-3xl p-6" style={card}>
-        <span className="mb-4 block text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)', letterSpacing: '0.09em' }}>
-          Deposits, distributions &amp; bridges
-        </span>
-        <div className="mb-2 grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 text-[0.65rem] font-semibold uppercase tracking-wider" style={{ color: 'var(--subtle)' }}>
-          <span>Amount (USDC)</span><span className="w-14 text-right">STR</span><span className="w-16 text-right">Daily max</span>
-        </div>
-        <ul className="space-y-2">
-          {TIERS.map((t, i) => {
-            const reached = isConnected && activity.tierToday >= i
-            return (
-              <li key={t.range} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 rounded-2xl px-4 py-3" style={{
-                background: reached ? 'rgba(245,200,66,0.07)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${reached ? 'rgba(245,200,66,0.22)' : 'rgba(245,200,66,0.08)'}`,
-              }}>
-                <span className="text-sm tabular-nums" style={{ color: 'var(--ink-2)' }}>{t.range}</span>
-                <span className="display w-14 text-right text-base font-bold tabular-nums" style={{ color: 'var(--accent)' }}>+{t.points}</span>
-                <span className="w-16 text-right text-sm tabular-nums" style={{ color: 'var(--muted)' }}>{t.dailyMax}</span>
-              </li>
-            )
-          })}
-        </ul>
-        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
-          Under 1 USDC still works but earns 0 STR. A deposit or bridge counts by the amount you send; a distribution counts by the split&rsquo;s balance after the protocol fee.
-        </p>
-      </div>
-
-      {/* How points work */}
-      <div className="rounded-3xl p-6" style={card}>
-        <span className="mb-4 block text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)', letterSpacing: '0.09em' }}>
-          How points work
-        </span>
-        <ul className="space-y-2.5">
-          {RULES.map(r => (
-            <li key={r.label} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,200,66,0.08)' }}>
-              <span className="text-sm" style={{ color: 'var(--ink-2)' }}>{r.label}</span>
-              <span className="display text-base font-bold tabular-nums" style={{ color: 'var(--accent)' }}>{r.amount}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
-          Missing a day resets your streak. After the day-7 bonus the streak starts over.
-        </p>
+      {/* How points work: folded to keep the page calm */}
+      <div className="rounded-3xl overflow-hidden" style={card}>
+        <button
+          onClick={() => setRulesOpen(o => !o)}
+          aria-expanded={rulesOpen}
+          className="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-white/[0.03]"
+        >
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)', letterSpacing: '0.09em' }}>
+            How points work
+          </span>
+          <ChevronDown className="size-4 transition-transform" style={{ color: 'var(--muted)', transform: rulesOpen ? 'rotate(180deg)' : 'none' }} />
+        </button>
+        {rulesOpen && (
+          <div className="space-y-6 px-6 pb-6">
+            <div>
+              <span className="mb-3 block text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Deposits, distributions &amp; bridges</span>
+            <div className="mb-2 grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 text-[0.65rem] font-semibold uppercase tracking-wider" style={{ color: 'var(--subtle)' }}>
+              <span>Amount (USDC)</span><span className="w-14 text-right">STR</span><span className="w-16 text-right">Daily max</span>
+            </div>
+            <ul className="space-y-2">
+              {TIERS.map((t, i) => {
+                const reached = isConnected && activity.tierToday >= i
+                return (
+                  <li key={t.range} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 rounded-2xl px-4 py-3" style={{
+                    background: reached ? 'rgba(245,200,66,0.07)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${reached ? 'rgba(245,200,66,0.22)' : 'rgba(245,200,66,0.08)'}`,
+                  }}>
+                    <span className="text-sm tabular-nums" style={{ color: 'var(--ink-2)' }}>{t.range}</span>
+                    <span className="display w-14 text-right text-base font-bold tabular-nums" style={{ color: 'var(--accent)' }}>+{t.points}</span>
+                    <span className="w-16 text-right text-sm tabular-nums" style={{ color: 'var(--muted)' }}>{t.dailyMax}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
+              Under 1 USDC still works but earns 0 STR. A deposit or bridge counts by the amount you send; a distribution counts by the split&rsquo;s balance after the protocol fee.
+            </p>
+            </div>
+            <div>
+              <span className="mb-3 block text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Check-ins</span>
+            <ul className="space-y-2.5">
+              {RULES.map(r => (
+                <li key={r.label} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,200,66,0.08)' }}>
+                  <span className="text-sm" style={{ color: 'var(--ink-2)' }}>{r.label}</span>
+                  <span className="display text-base font-bold tabular-nums" style={{ color: 'var(--accent)' }}>{r.amount}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--subtle)' }}>
+              Missing a day resets your streak. After the day-7 bonus the streak starts over.
+            </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

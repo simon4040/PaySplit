@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useAccount, useReadContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
+import { useAccount, useReadContract, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useWriteContract } from '@/hooks/useWrite'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Loader2, Pencil, X } from 'lucide-react'
 import { toast } from 'sonner'

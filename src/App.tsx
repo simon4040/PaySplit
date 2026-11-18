@@ -1,22 +1,25 @@
 import { useState } from 'react'
 import { ConnectKitButton } from 'connectkit'
-import { Plus, ExternalLink, GitBranch, Sparkles, Users, Wallet, Zap, Loader2, type LucideIcon } from 'lucide-react'
+import { Plus, ExternalLink, Sparkles, Users, Wallet, Zap, Loader2, type LucideIcon } from 'lucide-react'
 import { useAccount } from 'wagmi'
-import { buildAddressExplorerUrl } from '@/onchain-facts'
+import { explorerAddressUrl } from '@/explorer'
 import { useChain } from '@/hooks/useChain'
 import { ChainProvider } from '@/components/ChainProvider'
 import { ChainSwitcher } from '@/components/ChainSwitcher'
-import { BottomNav, type Tab } from '@/components/BottomNav'
+import { BottomNav, useTabs, type Tab } from '@/components/BottomNav'
 import { formatAddress } from '@/utils'
 import { CreateSplitSheet } from '@/components/CreateSplitSheet'
 import { SplitCard } from '@/components/SplitCard'
 import { SplitSelector } from '@/components/SplitSelector'
 import { FeeAdminPanel } from '@/components/FeeAdminPanel'
-import { PointsPage } from '@/components/PointsPage'
+import { StocksPage, StockSummaryLink } from '@/components/StocksPage'
+import { RewardsPage } from '@/components/RewardsPage'
 import { BridgePage } from '@/components/BridgePage'
-import { LeaderboardPage } from '@/components/LeaderboardPage'
 import { useTotalPoints } from '@/hooks/usePoints'
+import { useSplitIds } from '@/hooks/useSplitIds'
+import { filterVisible } from '@/hooks/useSplitTitle'
 import { SplitHeading } from '@/components/SplitHeading'
+import { Logo } from '@/components/Logo'
 
 const FEATURES: { icon: LucideIcon; label: string; body: string }[] = [
   { icon: Users, label: 'Custom splits', body: 'Name it, add recipients and exact shares.' },
@@ -26,13 +29,20 @@ const FEATURES: { icon: LucideIcon; label: string; body: string }[] = [
 
 function AppInner() {
   const chain = useChain()
-  const explorerUrl = buildAddressExplorerUrl(chain.id, chain.factory.address)
-  const { isConnected } = useAccount()
+  const explorerUrl = explorerAddressUrl(chain.id, chain.factory.address)
+  const { isConnected, address } = useAccount()
   const [createOpen, setCreateOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [selectedId, setSelectedId] = useState<bigint | null>(null)
   const [tab, setTab] = useState<Tab>('home')
   const totals = useTotalPoints()
+  // A tab that does not exist on this network (Stocks outside Base) falls back to Home
+  const available = useTabs()
+  const activeTab: Tab = available.includes(tab) ? tab : 'home'
+  // Feature cards are an intro: shown until you have created a split
+  const myIds = useSplitIds(address)
+  const hasSplits = isConnected && filterVisible(chain.id, myIds.ids).length > 0
+  const showIntro = !isConnected || (!myIds.loading && !hasSplits)
 
   const handleCreated = (id: bigint) => {
     setSelectedId(id)
@@ -47,7 +57,7 @@ function AppInner() {
   }
 
   const handleTab = (next: Tab) => {
-    if (next === 'home' && tab === 'home') setSelectedId(null)
+    if (next === 'home' && activeTab === 'home') setSelectedId(null)
     setTab(next)
   }
 
@@ -64,28 +74,22 @@ function AppInner() {
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="size-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(245,200,66,0.12)' }}>
-              <GitBranch className="size-3.5" style={{ color: 'var(--accent)' }} />
-            </div>
-            <span className="display text-base font-bold" style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}>
-              Splitter
-            </span>
-          </div>
-          <a
-            href={explorerUrl} target="_blank" rel="noreferrer"
-            className="hidden sm:flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-70"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--muted)' }}
-          >
-            <span className="mono">{formatAddress(chain.factory.address)}</span>
-            <ExternalLink className="size-3" />
-          </a>
+          <Logo />
+          {explorerUrl && (
+            <a
+              href={explorerUrl} target="_blank" rel="noreferrer"
+              className="hidden sm:flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-70"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--muted)' }}
+            >
+              <span className="mono">{formatAddress(chain.factory.address)}</span>
+              <ExternalLink className="size-3" />
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isConnected && totals.loaded && (
             <button
-              onClick={() => setTab('points')}
+              onClick={() => setTab('rewards')}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold tabular-nums transition-opacity hover:opacity-80"
               style={{ background: 'rgba(245,200,66,0.10)', color: 'var(--accent)', boxShadow: '0 0 0 1px rgba(245,200,66,0.22)' }}
               title="Your STR points"
@@ -112,7 +116,7 @@ function AppInner() {
       </header>
 
       <main className="mx-auto max-w-md px-4 pt-8 pb-32 space-y-5">
-        {/* Network switcher: drives every page (Home, Points, Leaderboard) */}
+        {/* Network switcher: drives every page */}
         <ChainSwitcher onChange={handleChainChange} />
         {switching && (
           <p className="-mt-2 flex items-center justify-center gap-1.5 text-xs" style={{ color: 'var(--muted)' }}>
@@ -121,10 +125,10 @@ function AppInner() {
         )}
 
         {/* One keyed wrapper: when the network changes, the whole page resets and loads fresh data */}
-        <div key={`${tab}-${chain.id}`} className="space-y-5">
+        <div key={`${activeTab}-${chain.id}`} className="space-y-5">
 
         {/* ───────── Home ───────── */}
-        {tab === 'home' && selectedId === null && (
+        {activeTab === 'home' && selectedId === null && (
           <>
             <div className="rounded-3xl p-6" style={{
               background: 'linear-gradient(135deg, rgba(245,200,66,0.07) 0%, rgba(255,255,255,0.02) 100%)',
@@ -149,24 +153,30 @@ function AppInner() {
             {/* Your Splits: always shown, same place every time */}
             <SplitSelector selected={selectedId} onSelect={setSelectedId} onDeselect={() => setSelectedId(null)} />
 
-            {/* Feature cards */}
-            <div className="grid grid-cols-3 gap-2.5">
-              {FEATURES.map(({ icon: Icon, label, body }) => (
-                <div
-                  key={label}
-                  className="rounded-2xl p-3 flex flex-col gap-2"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,200,66,0.09)' }}
-                >
-                  <div className="size-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,200,66,0.09)' }}>
-                    <Icon className="size-3.5" style={{ color: 'var(--accent)' }} />
+            {/* Stock Treasury summary: Base only (renders nothing on other networks) */}
+            {chain.key === 'base' && <StockSummaryLink onOpen={() => setTab('stocks')} />}
+
+            {/* Intro cards: only until you have created a split */}
+            {showIntro && (
+              <div className="grid grid-cols-3 gap-2.5">
+                {FEATURES.map(({ icon: Icon, label, body }) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl p-3 flex flex-col gap-2"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,200,66,0.09)' }}
+                  >
+                    <div className="size-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,200,66,0.09)' }}>
+                      <Icon className="size-3.5" style={{ color: 'var(--accent)' }} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold leading-tight" style={{ color: 'var(--ink)' }}>{label}</p>
+                      <p className="mt-0.5 leading-snug" style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>{body}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold leading-tight" style={{ color: 'var(--ink)' }}>{label}</p>
-                    <p className="mt-0.5 leading-snug" style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>{body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+            )}
 
             {/* Owner-only fee controls (renders nothing for other wallets) */}
             <FeeAdminPanel />
@@ -174,7 +184,7 @@ function AppInner() {
         )}
 
         {/* Selected split detail */}
-        {tab === 'home' && selectedId !== null && (
+        {activeTab === 'home' && selectedId !== null && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <button
@@ -202,16 +212,13 @@ function AppInner() {
           </div>
         )}
 
-        {/* ───────── Points ───────── */}
-        {tab === 'bridge' && <BridgePage />}
-        {tab === 'points' && <PointsPage />}
-
-        {/* ───────── Leaderboard ───────── */}
-        {tab === 'leaderboard' && <LeaderboardPage />}
+        {activeTab === 'bridge' && <BridgePage />}
+        {activeTab === 'rewards' && <RewardsPage />}
+        {activeTab === 'stocks' && <StocksPage />}
         </div>
       </main>
 
-      <BottomNav tab={tab} onChange={handleTab} />
+      <BottomNav tab={activeTab} onChange={handleTab} />
 
       {/* Create sheet */}
       <CreateSplitSheet open={createOpen} onClose={() => setCreateOpen(false)} onCreated={handleCreated} />

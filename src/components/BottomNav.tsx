@@ -1,16 +1,24 @@
-import { ArrowLeftRight, Home, Sparkles, Trophy } from 'lucide-react'
+import { ArrowLeftRight, Home, Landmark, Trophy } from 'lucide-react'
+import { useChain } from '@/hooks/useChain'
 
-export type Tab = 'home' | 'bridge' | 'points' | 'leaderboard'
+export type Tab = 'home' | 'bridge' | 'rewards' | 'stocks'
 
 const ITEMS: { key: Tab; label: string; icon: typeof Home }[] = [
   { key: 'home', label: 'Home', icon: Home },
   { key: 'bridge', label: 'Bridge', icon: ArrowLeftRight },
-  { key: 'points', label: 'Points', icon: Sparkles },
-  { key: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+  { key: 'rewards', label: 'Rewards', icon: Trophy },
+  { key: 'stocks', label: 'Stocks', icon: Landmark },
 ]
 
-/** Fixed bottom navigation: Home / Bridge / Points / Leaderboard. */
+/** Tabs available on a network: Stocks only exists where a Stock Treasury is set up (Base). */
+export function useTabs(): Tab[] {
+  const chain = useChain()
+  return ITEMS.filter(i => i.key !== 'stocks' || !!chain.stock).map(i => i.key)
+}
+
+/** Fixed bottom navigation: Home / Bridge / Rewards, plus Stocks on Base. */
 export function BottomNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+  const available = useTabs()
   return (
     <nav
       aria-label="Main"
@@ -24,7 +32,7 @@ export function BottomNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => v
       }}
     >
       <div className="mx-auto flex max-w-md items-stretch justify-around px-3 py-2">
-        {ITEMS.map(({ key, label, icon: Icon }) => {
+        {ITEMS.filter(i => available.includes(i.key)).map(({ key, label, icon: Icon }) => {
           const active = tab === key
           return (
             <button

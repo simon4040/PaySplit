@@ -1,5 +1,5 @@
 /**
- * The chain the UI is currently showing (Arc or Base).
+ * The chain the UI is currently showing (Arc, Base or Arbitrum, whichever are live).
  * Every read, write, balance, split list and fee setting follows this value.
  */
 import { createContext, useContext } from 'react'

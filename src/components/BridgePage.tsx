@@ -1,25 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  useAccount, useReadContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract,
-} from 'wagmi'
+import { useAccount, useReadContract, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useWriteContract } from '@/hooks/useWrite'
 import { erc20Abi, formatUnits, type Abi } from 'viem'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { NetworkArc, NetworkBase } from '@web3icons/react'
 import { ArrowLeftRight, Check, ExternalLink, Loader2, AlertTriangle, Clock } from 'lucide-react'
 import { toast } from 'sonner'
-import { CHAINS, type ChainKey } from '@/contract'
+import { CHAINS } from '@/contract'
 import { useChain, useChainSwitch } from '@/hooks/useChain'
+import { useBridgeRoute } from '@/hooks/useBridgeRoute'
 import { useFeeConfig } from '@/hooks/useFeeConfig'
 import { useActivity, announceAward, useNow } from '@/hooks/usePoints'
 import { estimateAward } from '@/hooks/strTiers'
 import { StrNotice } from '@/components/StrNotice'
+import { ChainLogo } from '@/components/ChainLogo'
 import {
   BRIDGE_POLL_MS, BRIDGE_SLOW_MS, FAST_FINALITY, computeBridge, fetchBridgeStatus, fetchFeeQuote, usePendingBridge,
   type BridgeStage,
 } from '@/bridge'
-import { buildTxExplorerUrl } from '@/onchain-facts'
+import { explorerTxUrl } from '@/explorer'
 import { parseUsdc, parseOnchainError, bpsToPercent } from '@/utils'
-import { DATA_SUFFIX } from '@/attribution'
 
 const card: React.CSSProperties = {
   background: 'rgba(255,255,255,0.035)',
@@ -32,15 +31,6 @@ function fmt(raw: bigint): string {
   const [whole, frac = ''] = formatUnits(raw, 6).split('.')
   const trimmed = frac.replace(/0+$/, '').padEnd(2, '0')
   return `${Number(whole).toLocaleString('en-US')}.${trimmed}`
-}
-
-function Logo({ k, size = 28 }: { k: ChainKey; size?: number }) {
-  const L = k === 'arc' ? NetworkArc : NetworkBase
-  return (
-    <span aria-hidden className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg" style={{ width: size, height: size, boxShadow: '0 0 0 1px rgba(255,255,255,0.14)' }}>
-      <L variant="background" size={size} />
-    </span>
-  )
 }
 
 function Row({ label, value, strong, muted }: { label: string; value: React.ReactNode; strong?: boolean; muted?: boolean }) {
@@ -94,8 +84,8 @@ function Tracker() {
   const active = done ? 3 : stage === 'forwarding' ? 2 : 1 // index of the step in progress
   const src = Object.values(CHAINS).find(c => c.id === pending.srcChainId)
   const dst = Object.values(CHAINS).find(c => c.id === pending.dstChainId)
-  const burnUrl = buildTxExplorerUrl(pending.srcChainId, pending.txHash)
-  const mintUrl = data?.mintTx ? buildTxExplorerUrl(pending.dstChainId, data.mintTx) : null
+  const burnUrl = explorerTxUrl(pending.srcChainId, pending.txHash)
+  const mintUrl = data?.mintTx ? explorerTxUrl(pending.dstChainId, data.mintTx) : null
   const secs = Math.floor(elapsed / 1000)
   const steps = [`Sent from ${src?.label}`, 'Confirmed', `Received on ${dst?.label}`]
   const progress = done ? 100 : stage === 'forwarding' ? 66 : 33
@@ -167,9 +157,11 @@ function Tracker() {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <a href={burnUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted)' }}>
-          Sent transaction <ExternalLink className="size-3" />
-        </a>
+        {burnUrl && (
+          <a href={burnUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted)' }}>
+            Sent transaction <ExternalLink className="size-3" />
+          </a>
+        )}
         {mintUrl && (
           <a href={mintUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted)' }}>
             Received transaction <ExternalLink className="size-3" />
@@ -190,7 +182,8 @@ function Tracker() {
 export function BridgePage() {
   const chain = useChain()
   const { setChainKey } = useChainSwitch()
-  const dest = CHAINS[chain.key === 'arc' ? 'base' : 'arc']
+  const route = useBridgeRoute()
+  const dest = route.dest
   const queryClient = useQueryClient()
   const { address, isConnected, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
@@ -199,11 +192,12 @@ export function BridgePage() {
   const { pending, setPending } = usePendingBridge(address)
 
   const srcDomain = chain.cctpDomain
-  const dstDomain = dest.cctpDomain
+  const dstDomain = dest?.cctpDomain
 
   const { data: feeQuote, isLoading: quoteLoading, isError: quoteError } = useQuery({
     queryKey: ['cctp-fees', srcDomain, dstDomain],
-    queryFn: () => fetchFeeQuote(srcDomain, dstDomain),
+    queryFn: () => fetchFeeQuote(srcDomain, dstDomain as number),
+    enabled: dstDomain !== undefined,
     refetchInterval: 30_000,
     staleTime: 20_000,
   })
@@ -222,8 +216,8 @@ export function BridgePage() {
 
   // Destination balance, so the tracker can see the arrival the moment it happens.
   const { data: destBalance } = useReadContract({
-    address: dest.usdc, abi: erc20Abi, functionName: 'balanceOf',
-    args: [address!], chainId: dest.id, query: { enabled: !!address, refetchInterval: 5000 },
+    address: dest?.usdc, abi: erc20Abi, functionName: 'balanceOf',
+    args: [address!], chainId: dest?.id, query: { enabled: !!address && !!dest, refetchInterval: 5000 },
   })
 
   const parsed = parseUsdc(amount)
@@ -265,7 +259,7 @@ export function BridgePage() {
     if (isWrongChain) { switchChain({ chainId: chain.id }); return }
     approve({
       address: chain.usdc, abi: erc20Abi, functionName: 'approve',
-      args: [chain.points.address, parsed], chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      args: [chain.points.address, parsed], chainId: chain.id,
     }, {
       onSuccess: () => { void refetchAllowance(); toast.success('Approval confirmed.') },
       onError: e => toast.error(parseOnchainError(e)),
@@ -274,7 +268,7 @@ export function BridgePage() {
 
   const handleBridge = () => {
     if (isWrongChain) { switchChain({ chainId: chain.id }); return }
-    if (!quote || !quote.valid || !address || feeBps === undefined) return
+    if (!dest || !quote || !quote.valid || !address || feeBps === undefined) return
     sent.current = {
       amount: fmt(quote.amount), receive: fmt(quote.receiveEst),
       srcChainId: chain.id, dstChainId: dest.id, srcDomain,
@@ -284,18 +278,20 @@ export function BridgePage() {
     }
     bridge({
       address: chain.points.address, abi: chain.points.abi, functionName: 'bridge',
-      args: [parsed, quote.maxFee, FAST_FINALITY, address, feeBps], chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      args: [parsed, quote.maxFee, FAST_FINALITY, address, feeBps], chainId: chain.id,
     }, {
       onError: e => toast.error(parseOnchainError(e)),
     })
   }
 
   // What the primary button says / does
-  let label = `Bridge to ${dest.label}`
+  let label = dest ? `Bridge to ${dest.label}` : 'Route not available'
   let action: (() => void) | null = handleBridge
   let disabled = false
   if (!isConnected) { label = 'Connect wallet to bridge'; action = null; disabled = true }
   else if (locked) { label = 'Bridge in progress'; action = null; disabled = true }
+  else if (route.loading) { label = 'Checking route…'; action = null; disabled = true }
+  else if (!dest) { label = 'Route not available'; action = null; disabled = true }
   else if (isWrongChain) { label = `Switch to ${chain.label}`; action = () => switchChain({ chainId: chain.id }) }
   else if (parsed === 0n) { label = 'Enter an amount'; action = null; disabled = true }
   else if (insufficient) { label = 'Insufficient USDC'; action = null; disabled = true }
@@ -313,16 +309,17 @@ export function BridgePage() {
       <div className="rounded-3xl p-6" style={card}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Logo k={chain.key} />
+            <ChainLogo chainKey={chain.key} size={28} />
             <div className="min-w-0">
               <p className="text-[0.65rem] font-semibold uppercase tracking-widest" style={{ color: 'var(--subtle)' }}>From</p>
               <p className="display text-base font-bold" style={{ color: 'var(--ink)' }}>{chain.label}</p>
             </div>
           </div>
           <button
-            onClick={() => setChainKey(dest.key)}
-            disabled={busy || locked}
-            aria-label={`Switch direction: bridge from ${dest.label} to ${chain.label}`}
+            onClick={() => dest && setChainKey(dest.key)}
+            disabled={busy || locked || !route.reverseSupported}
+            aria-label={dest ? `Switch direction: bridge from ${dest.label} to ${chain.label}` : 'Switch direction'}
+            title={route.reverseSupported ? `Bridge from ${dest?.label} to ${chain.label}` : 'The reverse route is not available yet'}
             className="flex size-10 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             style={{ background: 'rgba(245,200,66,0.10)', border: '1px solid rgba(245,200,66,0.25)', color: 'var(--accent)' }}
           >
@@ -331,11 +328,47 @@ export function BridgePage() {
           <div className="flex min-w-0 items-center justify-end gap-2.5 text-right">
             <div className="min-w-0">
               <p className="text-[0.65rem] font-semibold uppercase tracking-widest" style={{ color: 'var(--subtle)' }}>To</p>
-              <p className="display text-base font-bold" style={{ color: 'var(--ink)' }}>{dest.label}</p>
+              <p className="display text-base font-bold" style={{ color: dest ? 'var(--ink)' : 'var(--subtle)' }}>
+                {dest ? dest.label : route.loading ? '…' : 'None yet'}
+              </p>
             </div>
-            <Logo k={dest.key} />
+            {dest && <ChainLogo chainKey={dest.key} size={28} />}
           </div>
         </div>
+
+        {route.options.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-widest" style={{ color: 'var(--subtle)' }}>Routes</span>
+            {route.options.map(o => (
+              <span
+                key={o.key}
+                title={o.supported ? 'Available' : 'Not available yet'}
+                className="flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-2.5 text-xs font-semibold"
+                style={{
+                  background: o.supported ? 'rgba(245,200,66,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${o.supported ? 'rgba(245,200,66,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  color: o.supported ? 'var(--accent)' : 'var(--subtle)',
+                  opacity: o.supported ? 1 : 0.7,
+                }}
+              >
+                <ChainLogo chainKey={o.key} size={16} />
+                To {o.label}{!o.supported && ' · not available'}
+              </span>
+            ))}
+          </div>
+        )}
+        {!route.loading && (() => {
+          const blocked = route.options.filter(o => !o.supported).map(o => o.label)
+          const notes: string[] = []
+          if (!dest) notes.push(`There is no bridge route from ${chain.label} yet.`)
+          else {
+            if (blocked.length > 0) notes.push(`${chain.label} → ${blocked.join(' or ')} is not available yet.`)
+            if (!route.reverseSupported) notes.push(`${dest.label} → ${chain.label} is not available yet.`)
+          }
+          return notes.length > 0 ? (
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>{notes.join(' ')}</p>
+          ) : null
+        })()}
 
         <div className="my-5 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
 
@@ -370,7 +403,7 @@ export function BridgePage() {
             <Row label="You send" value={`${fmt(quote.amount)} USDC`} />
             <Row label={`Platform fee (${bpsToPercent(bps!)}%)`} value={`− ${fmt(quote.platformFee)}`} muted />
             <Row label="Network fee" value={`− ${fmt(quote.networkFeeEst)}`} muted />
-            <Row label={`You receive on ${dest.label}`} value={quote.valid ? `${fmt(quote.receiveEst)} USDC` : '—'} strong />
+            <Row label={`You receive on ${dest?.label ?? ''}`} value={quote.valid ? `${fmt(quote.receiveEst)} USDC` : '—'} strong />
           </div>
         )}
         {quote && !quote.valid && parsed > 0n && (

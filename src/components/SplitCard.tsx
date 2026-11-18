@@ -3,10 +3,8 @@
  * distribute button, and deposit panel.
  */
 import { useState, useEffect, useRef } from 'react'
-import {
-  useAccount, useReadContract, useWriteContract,
-  useWaitForTransactionReceipt, useSwitchChain,
-} from 'wagmi'
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
+import { useWriteContract } from '@/hooks/useWrite'
 import { erc20Abi } from 'viem'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, ExternalLink, ArrowDownToLine, Send, GitBranch, Copy, Check } from 'lucide-react'
@@ -14,7 +12,7 @@ import { toast } from 'sonner'
 import { TokenUSDC } from '@web3icons/react'
 import { useChain } from '@/hooks/useChain'
 import { formatUsdc, parseUsdc, bpsToPercent, formatAddress, parseOnchainError } from '@/utils'
-import { buildTxExplorerUrl } from '@/onchain-facts'
+import { explorerTxUrl } from '@/explorer'
 import { Amount, usdcDecimalsFor } from '@/onchain-money'
 import { useRecipientLabels } from '@/hooks/useRecipientLabels'
 import { RecipientTagsEditor } from '@/components/RecipientTagsEditor'
@@ -23,7 +21,6 @@ import { useActivity, announceAward } from '@/hooks/usePoints'
 import { estimateAward } from '@/hooks/strTiers'
 import { StrNotice } from '@/components/StrNotice'
 import { formatUnits, type Abi } from 'viem'
-import { DATA_SUFFIX } from '@/attribution'
 
 /** USDC amount with at least 2 and at most 6 decimals, trailing zeros trimmed. */
 function fmtPrecise(raw: bigint): string {
@@ -117,7 +114,7 @@ function DepositSection({ splitId, onDeposited }: { splitId: bigint; onDeposited
     hash: depositHash, query: { enabled: !!depositHash },
   })
 
-  const txUrl = depositHash ? buildTxExplorerUrl(chain.id, depositHash) : null
+  const txUrl = depositHash ? explorerTxUrl(chain.id, depositHash) : null
   const isBusy = approveP || approveConf || depositP || depositConf
 
   const notifiedDepositRef = useRef<string | null>(null)
@@ -136,7 +133,7 @@ function DepositSection({ splitId, onDeposited }: { splitId: bigint; onDeposited
     if (isWrongChain) { switchChain({ chainId: chain.id }); return }
     approve({
       address: chain.usdc, abi: erc20Abi, functionName: 'approve',
-      args: [chain.points.address, parsed], chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      args: [chain.points.address, parsed], chainId: chain.id,
     }, {
       onSuccess: () => { void refetchAllowance(); toast.success('Approval confirmed.') },
       onError: (err) => toast.error(parseOnchainError(err)),
@@ -148,7 +145,7 @@ function DepositSection({ splitId, onDeposited }: { splitId: bigint; onDeposited
     if (version === undefined) return
     deposit({
       address: chain.points.address, abi: chain.points.abi, functionName: 'depositToSplit',
-      args: [splitId, parsed, version], chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      args: [splitId, parsed, version], chainId: chain.id,
     }, {
       onError: (err) => toast.error(parseOnchainError(err)),
     })
@@ -284,7 +281,7 @@ function DistributeSection({
     hash, query: { enabled: !!hash },
   })
 
-  const txUrl = hash ? buildTxExplorerUrl(chain.id, hash) : null
+  const txUrl = hash ? explorerTxUrl(chain.id, hash) : null
   const notifiedRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -299,7 +296,7 @@ function DistributeSection({
     if (isWrongChain) { switchChain({ chainId: chain.id }); return }
     writeContract({
       address: chain.points.address, abi: chain.points.abi,
-      functionName: 'distribute', args: [splitId], chainId: chain.id, dataSuffix: DATA_SUFFIX,
+      functionName: 'distribute', args: [splitId], chainId: chain.id,
     }, {
       onSuccess: () => toast.success('Distributed to all recipients.'),
       onError: (err) => toast.error(parseOnchainError(err)),
