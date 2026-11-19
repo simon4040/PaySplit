@@ -1,11 +1,9 @@
 # PaySplit Protocol
 
-A USDC payment splitter on Arc and Base. Anyone can create a named split, assign recipients with percentage
+Split USDC on Arc, Base & Arbitrum. Anyone can create a named split, assign recipients with percentage
 shares, deposit USDC, and trigger a single **Distribute** that pays every recipient proportionally. A small,
-adjustable protocol fee is taken on deposits and bridges. Users earn STR points and can bridge USDC between
-Arc and Base.
+adjustable protocol fee is taken on deposits and bridges. Users earn STR points and can bridge USDC between Arc, Base and Arbitrum. 30% of fees collected on Base goes to the stock treasury. 
 
-Built with [Arc Studio](https://studio.arc.io)
 
 ## What it does
 
