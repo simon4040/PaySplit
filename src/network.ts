@@ -82,7 +82,7 @@ export const NETWORK: Record<'arc' | 'base', ChainDeployment> & Partial<Record<'
     // After you deploy the router (README, step 4): paste its address as `router` and your stock treasury wallet as `treasury`.
     // The five tokens below are the real Coinbase tokenized stocks on Base Mainnet (8 decimals, symbol and name confirmed on-chain).
     stock: {
-      router: '0x5E4A44CD134dDD2f6633e7b44537a6FF88F8A544',
+      router: '0xcA562447C63e8FE4bA21fc8D0ae8229838095c86',
       treasury: '0xe10abbc8c203a70a8aff5897385da9245b49ef59',
       tokens: [
         { symbol: 'NVDAc', name: 'NVIDIA', address: '0xb20000000000000000000078ee7ce2fE4908108C' },
