@@ -100,7 +100,7 @@ export const NETWORK: Record<'arc' | 'base', ChainDeployment> & Partial<Record<'
     usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     cctpDomain: 3,
     factory: '0x9336ef11392Db07873cca919EeD8A4C6Cc1bB881', // SplitFactory
-    points: '0xf5AAf10c58a01fC27919Cc34a64C4F1c99ad7318', // StrPoints
+    points: '0x5ea945f5491c73978cce56924c4dc92b3b1c3a38', // StrPoints
     names: '0x06e879972f9b24FB258100E9B3A9FeA060Df77D9', // SplitNames
     labels: '0x948787C73cF74Fa25800b57fcbDCa95a516187f2', // RecipientLabels
   },
